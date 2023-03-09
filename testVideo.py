@@ -61,7 +61,7 @@ VisionRunningMode = mp.tasks.vision.RunningMode
 options = HandLandmarkerOptions(
     base_options=BaseOptions(model_asset_path='./hand_landmarker.task'),
     running_mode=VisionRunningMode.VIDEO)
-cap = cv2.VideoCapture("./videos/1-1.mp4")
+cap = cv2.VideoCapture("./videos/3.mp4")
 fps = cap.get(cv2.CAP_PROP_FPS)
 frame_width  = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
 frame_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
