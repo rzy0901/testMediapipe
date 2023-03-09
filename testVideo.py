@@ -7,6 +7,7 @@ from mediapipe.tasks.python import vision
 from mediapipe import solutions
 from mediapipe.framework.formats import landmark_pb2
 import numpy as np
+from scipy.io import savemat
 
 MARGIN = 10  # pixels
 FONT_SIZE = 1
@@ -68,7 +69,8 @@ frame_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
 # Define the fps to be equal to 10. Also frame size is passed. 
 out = cv2.VideoWriter('output.mp4',cv2.VideoWriter_fourcc(*'MP4V'), fps, (int(frame_width),int(frame_height)))
 Nframes = cap.get(cv2.CAP_PROP_FRAME_COUNT)
-timestamps = [cap.get(cv2.CAP_PROP_POS_MSEC)]
+timestampList = []
+keypoints = []
 print("fps=", fps, "frames=", Nframes)
 with HandLandmarker.create_from_options(options) as landmarker:
     for i in range(int(Nframes)):
@@ -78,12 +80,20 @@ with HandLandmarker.create_from_options(options) as landmarker:
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB,
                             data=cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         frame_timestamp_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
-        timestamps.append(frame_timestamp_ms)
+        timestampList.append(frame_timestamp_ms)
         hand_landmarker_result = landmarker.detect_for_video(mp_image, int(frame_timestamp_ms))
+        hand_landmarks_list = hand_landmarker_result.hand_landmarks
+        hand_landmarks = hand_landmarks_list[0] # Consider one hand
+        keypoint = [[landmark.x,landmark.y,landmark.z] for landmark in hand_landmarks]
+        keypoints.append(keypoint)
         annotated_image = draw_landmarks_on_image(mp_image.numpy_view(), hand_landmarker_result)
         out.write(cv2.cvtColor(annotated_image,cv2.COLOR_RGB2BGR))
         cv2.imshow('MediaPipe Hands', cv2.cvtColor(annotated_image,cv2.COLOR_RGB2BGR))
         if cv2.waitKey(5) & 0xFF == 27:
             break
+print(len(timestampList))
+print(len(keypoints))
+print(len(keypoints[1]))
+savemat('./data.mat',{'timestampList':timestampList,'keypoints':keypoints})
 cap.release()
 out.release()
