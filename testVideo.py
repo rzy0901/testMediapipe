@@ -62,11 +62,11 @@ options = HandLandmarkerOptions(
     running_mode=VisionRunningMode.VIDEO)
 cap = cv2.VideoCapture("./videos/1-1.mp4")
 fps = cap.get(cv2.CAP_PROP_FPS)
-frame_width = cv2.CAP_PROP_FRAME_WIDTH
-frame_height = cv2.CAP_PROP_FRAME_HEIGHT
+frame_width  = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+frame_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
 # Define the codec and create VideoWriter object.The output is stored in 'outpy.avi' file.
 # Define the fps to be equal to 10. Also frame size is passed. 
-# out = cv2.VideoWriter('output.avi',cv2.VideoWriter_fourcc('M','J','P','G'), fps, (frame_width,frame_height))
+out = cv2.VideoWriter('output.mp4',cv2.VideoWriter_fourcc(*'MP4V'), fps, (int(frame_width),int(frame_height)))
 Nframes = cap.get(cv2.CAP_PROP_FRAME_COUNT)
 timestamps = [cap.get(cv2.CAP_PROP_POS_MSEC)]
 print("fps=", fps, "frames=", Nframes)
@@ -81,8 +81,9 @@ with HandLandmarker.create_from_options(options) as landmarker:
         timestamps.append(frame_timestamp_ms)
         hand_landmarker_result = landmarker.detect_for_video(mp_image, int(frame_timestamp_ms))
         annotated_image = draw_landmarks_on_image(mp_image.numpy_view(), hand_landmarker_result)
+        out.write(cv2.cvtColor(annotated_image,cv2.COLOR_RGB2BGR))
         cv2.imshow('MediaPipe Hands', cv2.cvtColor(annotated_image,cv2.COLOR_RGB2BGR))
-        # out.write(cv2.cvtColor(annotated_image,cv2.COLOR_RGB2BGR))
-        
+        if cv2.waitKey(5) & 0xFF == 27:
+            break
 cap.release()
-# out.release()
+out.release()
