@@ -8,7 +8,6 @@ from mediapipe import solutions
 from mediapipe.framework.formats import landmark_pb2
 import numpy as np
 from scipy.io import savemat
-import os
 
 MARGIN = 10  # pixels
 FONT_SIZE = 1
@@ -53,11 +52,6 @@ def draw_landmarks_on_image(rgb_image, detection_result):
     return annotated_image
 
 
-def depth_to_distance(depth):
-    # Decided by camera
-    return -1.7 * depth + 2
-
-
 BaseOptions = mp.tasks.BaseOptions
 HandLandmarker = mp.tasks.vision.HandLandmarker
 HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
@@ -67,19 +61,11 @@ VisionRunningMode = mp.tasks.vision.RunningMode
 options = HandLandmarkerOptions(
     base_options=BaseOptions(model_asset_path='./hand_landmarker.task'),
     running_mode=VisionRunningMode.VIDEO)
-model_path = os.path.abspath(
-    "./model-f6b98070.onnx")  # MiaDas v2.1 model large
-# model_path = os.path.abspath("./model-small.onnx") # MiaDas v2.1 model small
-model = cv2.dnn.readNet(model_path)
-
-cap = cv2.VideoCapture("./videos/1-1.mp4")
+cap = cv2.VideoCapture("./videos/3.mp4")
 fps = cap.get(cv2.CAP_PROP_FPS)
-frame_width = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+frame_width  = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
 frame_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-out = cv2.VideoWriter('./output2/output.mp4', cv2.VideoWriter_fourcc(*
-                      'MP4V'), fps, (int(frame_width), int(frame_height)))
-out_depth = cv2.VideoWriter('./output2/output_depth.mp4', cv2.VideoWriter_fourcc(*
-                                                                                 'MP4V'), fps, (int(frame_width), int(frame_height)), 0)
+out = cv2.VideoWriter('./output3/output.mp4',cv2.VideoWriter_fourcc(*'MP4V'), fps, (int(frame_width),int(frame_height)))
 Nframes = cap.get(cv2.CAP_PROP_FRAME_COUNT)
 timestampList = []
 keypoints = []
@@ -89,57 +75,55 @@ with HandLandmarker.create_from_options(options) as landmarker:
         success, img = cap.read()  # frame: BGR
         if not success:
             break
-        imgHeight, imgWidth, channels = img.shape
+        frame_height, frame_width, channels = img.shape
+        # https://github.com/google/mediapipe/issues/2199
+        # https://gist.github.com/eldog/9012ce957be26934044131daffc25c73
+        focal_length = frame_width
+        center = (frame_width/2, frame_height/2)
+        camera_matrix = np.array(
+                                 [[focal_length, 0, center[0]],
+                                 [0, focal_length, center[1]],
+                                 [0, 0, 1]], dtype = "double"
+                                 )
+        distortion = np.zeros((4, 1))
+
+
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB,
                             data=cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         frame_timestamp_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
         timestampList.append(frame_timestamp_ms)
-        hand_landmarker_result = landmarker.detect_for_video(
-            mp_image, int(frame_timestamp_ms))
+        hand_landmarker_result = landmarker.detect_for_video(mp_image, int(frame_timestamp_ms))
         hand_landmarks_list = hand_landmarker_result.hand_landmarks
-        hand_landmarks = hand_landmarks_list[0]  # Consider one hand
-        # -------------- Depth map from neural net ---------------------------
-        # Create Blob from Input Image
-        # MiDaS v2.1 Large ( Scale : 1 / 255, Size : 384 x 384, Mean Subtraction : ( 123.675, 116.28, 103.53 ), Channels Order : RGB )
-        blob = cv2.dnn.blobFromImage(
-            img, 1/255., (384, 384), (123.675, 116.28, 103.53), True, False)
+        hand_world_landmarks_list = hand_landmarker_result.hand_world_landmarks
+        hand_landmarks = hand_landmarks_list[0] # Consider one hand
+        hand_world_landmarks = hand_world_landmarks_list[0]
+        model_points = np.float32([[-l.x, -l.y, -l.z] for l in hand_world_landmarks])
+        image_points = np.float32([[l.x * frame_width, l.y * frame_height] for l in hand_landmarks])
+        success, rvecs, tvecs, = cv2.solvePnP(
+                    model_points,
+                    image_points,
+                    camera_matrix,
+                    distortion, 
+                    flags=cv2.SOLVEPNP_SQPNP
+                )
+        transformation = np.eye(4)  # needs to 4x4 because you have to use homogeneous coordinates
+        transformation[0:3, 3] = tvecs.squeeze()
+        # the transformation consists only of the translation, because the rotation is accounted for in the model coordinates. Take a look at this (https://codepen.io/mediapipe/pen/RwGWYJw to see how the model coordinates behave - the hand rotates, but doesn't translate
 
-        # MiDaS v2.1 Small ( Scale : 1 / 255, Size : 256 x 256, Mean Subtraction : ( 123.675, 116.28, 103.53 ), Channels Order : RGB )
-        #blob = cv2.dnn.blobFromImage(img, 1/255., (256,256), (123.675, 116.28, 103.53), True, False)
-        model.setInput(blob)
-        depth_map = model.forward()
-        depth_map = depth_map[0, :, :]
-        depth_map = cv2.resize(depth_map, (imgWidth, imgHeight))
-        # Normalize the output
-        depth_map = cv2.normalize(
-            depth_map, None, 0, 1, norm_type=cv2.NORM_MINMAX, dtype=cv2.CV_32F)
-        hand_landmark_wrist = hand_landmarks[mp.solutions.hands.HandLandmark.WRIST]
-        y_wrist = int(hand_landmark_wrist.y*imgHeight)
-        x_wrist = int(hand_landmark_wrist.x*imgWidth)
-        depth_wrist = depth_map[y_wrist, x_wrist]
-        keypoint = [[landmark.x, landmark.y, landmark.z+depth_wrist]
-                    for landmark in hand_landmarks]
-        # keypoint = [[landmark.x*imgWidth,
-        #              landmark.y*imgHeight,
-        #              depth_map[int(landmark.y*imgHeight),
-        #                        int(landmark.x*imgWidth)]*imgWidth
-        #              ]
-        #             for landmark in hand_landmarks]
-        keypoints.append(keypoint)
-        annotated_image = draw_landmarks_on_image(
-            mp_image.numpy_view(), hand_landmarker_result)
-        out.write(cv2.cvtColor(annotated_image, cv2.COLOR_RGB2BGR))
-        out_depth.write((depth_map*255).astype(np.uint8))
-        cv2.imshow('MediaPipe Hands', cv2.cvtColor(
-            annotated_image, cv2.COLOR_RGB2BGR))
-        cv2.imshow('Depth map', depth_map)
+        # transform model coordinates into homogeneous coordinates
+        model_points_hom = np.concatenate((model_points, np.ones((21, 1))), axis=1)
+
+        # apply the transformation
+        world_points = model_points_hom.dot(np.linalg.inv(transformation).T)
+        keypoints.append(world_points[:,0:3])
+
+
+        annotated_image = draw_landmarks_on_image(mp_image.numpy_view(), hand_landmarker_result)
+        out.write(cv2.cvtColor(annotated_image,cv2.COLOR_RGB2BGR))
+        cv2.imshow('MediaPipe Hands', cv2.cvtColor(annotated_image,cv2.COLOR_RGB2BGR))
         # Press esc on keyboard to  exit
         if cv2.waitKey(5) & 0xFF == 27:
             break
-# print(len(timestampList))
-# print(len(keypoints))
-# print(len(keypoints[1]))
-savemat('./output2/data.mat',
-        {'fps': fps, 'timestampList': timestampList, 'keypoints': keypoints})
+savemat('./output3/data.mat',{'fps':fps,'timestampList':timestampList,'keypoints':keypoints})
 cap.release()
 out.release()

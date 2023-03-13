@@ -65,8 +65,6 @@ cap = cv2.VideoCapture("./videos/3.mp4")
 fps = cap.get(cv2.CAP_PROP_FPS)
 frame_width  = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
 frame_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-# Define the codec and create VideoWriter object.The output is stored in 'outpy.avi' file.
-# Define the fps to be equal to 10. Also frame size is passed. 
 out = cv2.VideoWriter('./output/output.mp4',cv2.VideoWriter_fourcc(*'MP4V'), fps, (int(frame_width),int(frame_height)))
 Nframes = cap.get(cv2.CAP_PROP_FRAME_COUNT)
 timestampList = []
@@ -74,11 +72,12 @@ keypoints = []
 print("fps=", fps, "frames=", Nframes)
 with HandLandmarker.create_from_options(options) as landmarker:
     for i in range(int(Nframes)):
-        success, frame = cap.read()  # frame: BGR
+        success, img = cap.read()  # frame: BGR
         if not success:
             break
+        imgHeight, imgWidth, channels = img.shape
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB,
-                            data=cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+                            data=cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         frame_timestamp_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
         timestampList.append(frame_timestamp_ms)
         hand_landmarker_result = landmarker.detect_for_video(mp_image, int(frame_timestamp_ms))
@@ -92,9 +91,6 @@ with HandLandmarker.create_from_options(options) as landmarker:
         # Press esc on keyboard to  exit
         if cv2.waitKey(5) & 0xFF == 27:
             break
-# print(len(timestampList))
-# print(len(keypoints))
-# print(len(keypoints[1]))
 savemat('./output/data.mat',{'fps':fps,'timestampList':timestampList,'keypoints':keypoints})
 cap.release()
 out.release()
