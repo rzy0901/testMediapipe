@@ -68,7 +68,7 @@ options = HandLandmarkerOptions(
     base_options=BaseOptions(model_asset_path='./hand_landmarker.task'),
     running_mode=VisionRunningMode.VIDEO)
 model_path = os.path.abspath(
-    "./model-f6b98070.onnx")  # MiaDas v2.1 model large
+    "./model-f6b98070.onnx")  # MiDas v2.1 model large
 # model_path = os.path.abspath("./model-small.onnx") # MiaDas v2.1 model small
 model = cv2.dnn.readNet(model_path)
 
@@ -117,7 +117,7 @@ with HandLandmarker.create_from_options(options) as landmarker:
         y_wrist = int(hand_landmark_wrist.y*imgHeight)
         x_wrist = int(hand_landmark_wrist.x*imgWidth)
         depth_wrist = depth_map[y_wrist, x_wrist]
-        keypoint = [[landmark.x, landmark.y, landmark.z+depth_wrist]
+        keypoint = [[landmark.x, landmark.y, landmark.z*depth_wrist+depth_wrist]
                     for landmark in hand_landmarks]
         # keypoint = [[landmark.x*imgWidth,
         #              landmark.y*imgHeight,
