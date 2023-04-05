@@ -121,7 +121,7 @@ with HandLandmarker.create_from_options(options) as landmarker:
 
 
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB,
-                            data=cv2.cvtColor(cv2.flip(img,1), cv2.COLOR_BGR2RGB))
+                            data=cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
         frame_timestamp_ms = cap.get(cv2.CAP_PROP_POS_MSEC)
         timestampList.append(frame_timestamp_ms)
         hand_landmarker_result = landmarker.detect_for_video(mp_image, int(frame_timestamp_ms))
@@ -158,19 +158,21 @@ with HandLandmarker.create_from_options(options) as landmarker:
         # world_points_in_camera[:, :2] =  (np.concatenate([image_points, np.ones((image_points.shape[0], 1))], axis=1) @ np.linalg.inv(camera_matrix).T * world_points_in_camera_z)[:, :2]
         # ######################## METHOD 1 ########################
         
-        # ####################### METHOD 2 ########################
-        # R, _ = cv2.Rodrigues(rvec)
-        # transformation = np.eye(4, dtype=np.float32)
-        # transformation[:3,3] = tvec.squeeze()
-        # model_points_hom = np.concatenate((model_points, np.ones((21, 1))), axis=1)
-        # world_points_in_camera = model_points_hom.dot(np.linalg.inv(transformation).T)
-        # # world_points_in_camera_z = world_points_in_camera[:, 2].reshape(-1, 1)
-        # # world_points_in_camera[:, :2] =  (np.concatenate([image_points, np.ones((image_points.shape[0], 1))], axis=1) @ np.linalg.inv(camera_matrix).T * world_points_in_camera_z)[:, :2]
-        # ####################### METHOD 2 ########################
+        ####################### METHOD 2 ########################
+        R, _ = cv2.Rodrigues(rvec)
+        transformation = np.eye(4, dtype=np.float32)
+        transformation[:3,3] = tvec.squeeze()
+        model_points_hom = np.concatenate((model_points, np.ones((21, 1))), axis=1)
+        world_points_in_camera = model_points_hom.dot(np.linalg.inv(transformation).T)
+        # world_points_in_camera_z = world_points_in_camera[:, 2].reshape(-1, 1)
+        # world_points_in_camera[:, :2] =  (np.concatenate([image_points, np.ones((image_points.shape[0], 1))], axis=1) @ np.linalg.inv(camera_matrix).T * world_points_in_camera_z)[:, :2]
+        ####################### METHOD 2 ########################
 
-        ####################### METHOD 3 ########################
-        world_points_in_camera = model_points + tvec
-        ####################### METHOD 3 ########################
+        # ####################### METHOD 3 ########################
+        # world_points_in_camera = model_points + tvec
+        # world_points_in_camera_z = world_points_in_camera[:, 2].reshape(-1, 1)
+        # world_points_in_camera[:, :2] =  (np.concatenate([image_points, np.ones((image_points.shape[0], 1))], axis=1) @ np.linalg.inv(camera_matrix).T * world_points_in_camera_z)[:, :2]
+        # ####################### METHOD 3 ########################
         keypoints.append(world_points_in_camera)
         annotated_image = draw_landmarks_on_image(mp_image.numpy_view(), hand_landmarker_result)
         out.write(cv2.cvtColor(annotated_image,cv2.COLOR_RGB2BGR))
