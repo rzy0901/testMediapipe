@@ -8,6 +8,7 @@ from mediapipe import solutions
 from mediapipe.framework.formats import landmark_pb2
 import numpy as np
 from scipy.io import savemat
+from one_euro_filter import OneEuroFilter
 
 MARGIN = 10  # pixels
 FONT_SIZE = 1
@@ -60,12 +61,15 @@ VisionRunningMode = mp.tasks.vision.RunningMode
 # Create a hand landmarker instance with the video mode:
 options = HandLandmarkerOptions(
     base_options=BaseOptions(model_asset_path='./hand_landmarker.task'),
+    num_hands=2,
     running_mode=VisionRunningMode.VIDEO)
-cap = cv2.VideoCapture("./videos/3.mp4")
+folder = "/home/rzy/Desktop/Videos/"
+name = "Z2"
+cap = cv2.VideoCapture("{}/{}.mp4".format(folder,name))
 fps = cap.get(cv2.CAP_PROP_FPS)
 frame_width  = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
 frame_height = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-out = cv2.VideoWriter('./output/output.mp4',cv2.VideoWriter_fourcc(*'MP4V'), fps, (int(frame_width),int(frame_height)))
+out = cv2.VideoWriter('{}/{}_annotated.mp4'.format(folder,name),cv2.VideoWriter_fourcc(*'MP4V'), fps, (int(frame_width),int(frame_height)))
 Nframes = cap.get(cv2.CAP_PROP_FRAME_COUNT)
 timestampList = []
 keypoints = []
@@ -82,8 +86,15 @@ with HandLandmarker.create_from_options(options) as landmarker:
         timestampList.append(frame_timestamp_ms)
         hand_landmarker_result = landmarker.detect_for_video(mp_image, int(frame_timestamp_ms))
         hand_landmarks_list = hand_landmarker_result.hand_landmarks
-        hand_landmarks = hand_landmarks_list[0] # Consider one hand
-        keypoint = [[landmark.x,landmark.y,landmark.z] for landmark in hand_landmarks]
+        if len(hand_landmarks_list)>0:
+            hand_landmarks = hand_landmarks_list[0] # Consider one hand
+        keypoint = [[imgWidth*landmark.x,imgHeight*landmark.y,imgWidth*landmark.z] for landmark in hand_landmarks]
+        keypoint = np.asarray(keypoint)
+        if i == 0:
+            # Initialize the one-euro filter with suitable parameters
+            filter = OneEuroFilter(x0=keypoint, dx0=0.0, t0 = 0,min_cutoff=0.1, beta=0.05, d_cutoff=5.0)
+        else:
+            smooth_keypoint = filter(keypoint, t = frame_timestamp_ms*1000)
         keypoints.append(keypoint)
         annotated_image = draw_landmarks_on_image(mp_image.numpy_view(), hand_landmarker_result)
         out.write(cv2.cvtColor(annotated_image,cv2.COLOR_RGB2BGR))
@@ -91,6 +102,7 @@ with HandLandmarker.create_from_options(options) as landmarker:
         # Press esc on keyboard to  exit
         if cv2.waitKey(5) & 0xFF == 27:
             break
-savemat('./output/data.mat',{'fps':fps,'timestampList':timestampList,'keypoints':keypoints})
+# savemat('./output/{}.mat'.format(name),{'fps':fps,'timestampList':timestampList,'keypoints':keypoints,"imgWidth":imgWidth,"imgHeight":imgHeight})
+savemat('{}/{}.mat'.format(folder,name),{'fps':fps,'timestampList':timestampList,'keypoints':keypoints,"imgWidth":imgWidth,"imgHeight":imgHeight})
 cap.release()
 out.release()
