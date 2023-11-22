@@ -1,5 +1,7 @@
 # testMediapipe
 
+The result is not true, just a backup of my codes.
+
 This is a reproduction of [Google MediaType hand landmark model](https://google.github.io/mediapipe/solutions/hands.html), the estimated handlandmarks are expressed in camera coordinate in meters. I also do some simple mirco doppler simulation (these codes are still under development and private access now).
 
 Screenshot (Videos downloaded from http://lasso.eee.sustech.edu.cn/database/):
